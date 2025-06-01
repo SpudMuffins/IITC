@@ -2,7 +2,7 @@
 // @id             highlight-multihack@spudmuffins
 // @name           Highlight: Multi Hack Mods
 // @category       Highlighter
-// @version        0.1.1
+// @version        0.1.2
 // @namespace      https://github.com/SpudMuffins/IITC
 // @description    Highlights portals with Multi Hack mods: Common (green), Rare (purple), Very Rare (pink). Others are dimmed.
 // @match          https://intel.ingress.com/*
@@ -10,10 +10,9 @@
 // ==/UserScript==
 
 function wrapper(plugin_info) {
-  if (typeof window.plugin !== 'function') window.plugin = () => {};
+  if (typeof window.plugin !== 'function') window.plugin = function () {};
   window.plugin.multiHackHighlighter = {};
 
-  // Colors by rarity
   const rarityColors = {
     COMMON: 'limegreen',
     RARE: 'blueviolet',
@@ -23,13 +22,7 @@ function wrapper(plugin_info) {
 
   window.plugin.multiHackHighlighter.highlight = function (data) {
     const portal = data.portal;
-    const mods = portal.options.data?.mods;
-
-    if (!mods || !mods.length) {
-      // Dim portals with no mods but still keep them clickable
-      portal.setStyle({ fillOpacity: 0.1, strokeOpacity: 0.1 });
-      return;
-    }
+    const mods = portal.options.data?.mods || [];
 
     let foundRarity = null;
 
@@ -41,16 +34,26 @@ function wrapper(plugin_info) {
 
     if (foundRarity) {
       const color = rarityColors[foundRarity] || rarityColors.UNKNOWN;
-      portal.setStyle({ fillColor: color, fillOpacity: 0.7, stroke: true });
+      portal.setStyle({
+        fillColor: color,
+        fillOpacity: 0.8,
+        strokeColor: '#000',
+        strokeOpacity: 0.5,
+        strokeWeight: 2,
+      });
     } else {
-      // If no Multi Hack, dim the portal
-      portal.setStyle({ fillOpacity: 0.1, strokeOpacity: 0.1 });
+      // Dim portal if no Multi Hack present, but keep it visible and clickable
+      portal.setStyle({
+        fillColor: '#000',
+        fillOpacity: 0.1,
+        strokeOpacity: 0.1,
+      });
     }
   };
 
-  function setup() {
+  const setup = function () {
     window.addPortalHighlighter('Mods: Multi Hack (by rarity)', window.plugin.multiHackHighlighter.highlight);
-  }
+  };
 
   setup.info = plugin_info;
   if (!window.bootPlugins) window.bootPlugins = [];
