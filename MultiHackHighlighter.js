@@ -1,58 +1,59 @@
 // ==UserScript==
-// @id             highlight-multihack@spudmuffins
-// @name           Highlight: Multi Hack Rarity
-// @category       Layer
+// @id             highlight-multihacks@spudmuffins
+// @name           Highlight: Multi Hack Mods (by Rarity)
+// @category       Highlighter
 // @version        1.0.0
-// @description    Highlights portals with Multi Hack mods. Color by rarity. Gray if absent.
+// @description    Highlights portals with Multi Hack mods. Common = green, Rare = purple, Very Rare = pink. Gray ring if none.
 // @namespace      https://github.com/SpudMuffins/IITC
-// @include        https://*.ingress.com/intel*
-// @match          https://*.ingress.com/intel*
+// @match          https://intel.ingress.com/*
+// @include        https://intel.ingress.com/*
 // @grant          none
 // ==/UserScript==
 
 function wrapper(plugin_info) {
-  if (typeof window.plugin !== 'function') window.plugin = () => {};
-  window.plugin.highlightMultiHack = {};
+  if (typeof window.plugin !== 'function') window.plugin = function () {};
+  window.plugin.multiHackHighlighter = {};
 
+  // Define color scheme by rarity
   const COLORS = {
-    COMMON: '#32CD32',
-    RARE: '#800080',
-    VERY_RARE: '#FF69B4',
-    NONE: '#cccccc'
+    COMMON: 'limegreen',
+    RARE: 'blueviolet',
+    VERY_RARE: 'deeppink',
+    NONE: 'gray',
   };
 
-  const RARITY_MAP = {
-    'common': COLORS.COMMON,
-    'rare': COLORS.RARE,
-    'very rare': COLORS.VERY_RARE
-  };
+  function getRarityColor(rarity) {
+    if (!rarity) return COLORS.NONE;
+    switch (rarity.toLowerCase()) {
+      case 'common': return COLORS.COMMON;
+      case 'rare': return COLORS.RARE;
+      case 'very rare': return COLORS.VERY_RARE;
+      default: return COLORS.NONE;
+    }
+  }
 
-  window.plugin.highlightMultiHack.portalHighlight = function (data) {
+  window.plugin.multiHackHighlighter.highlight = function (data) {
     const portal = data.portal;
     const details = portal.options.data;
-    if (!details || !Array.isArray(details.mods)) return;
+    if (!details || !details.mods || !Array.isArray(details.mods)) return;
 
-    let best = null;
-    for (const mod of details.mods) {
-      if (!mod || !mod.name || !mod.rarity) continue;
-      const name = mod.name.toLowerCase();
-      const rarity = mod.rarity.toLowerCase();
-      if (name.includes('multi')) {
-        if (!best || rarityPriority(rarity) > rarityPriority(best)) best = rarity;
-      }
+    const multiHackMods = details.mods.filter(mod => mod && mod.name?.toLowerCase().includes('multi'));
+
+    if (multiHackMods.length === 0) {
+      portal.setStyle({ color: COLORS.NONE, opacity: 0.2 });
+    } else {
+      // Pick highest rarity to show
+      const rarityOrder = ['common', 'rare', 'very rare'];
+      const rarities = multiHackMods.map(mod => mod.rarity?.toLowerCase()).filter(Boolean);
+      const selectedRarity = rarities.sort((a, b) => rarityOrder.indexOf(b) - rarityOrder.indexOf(a))[0] || 'common';
+      const ringColor = getRarityColor(selectedRarity);
+      portal.setStyle({ color: ringColor, fillOpacity: 0.7, opacity: 1 });
     }
-
-    const color = best ? RARITY_MAP[best] : COLORS.NONE;
-    data.portal.setStyle({ fillColor: color, fillOpacity: 1, opacity: 1 });
   };
 
-  function rarityPriority(rarity) {
-    return rarity === 'very rare' ? 3 : rarity === 'rare' ? 2 : rarity === 'common' ? 1 : 0;
-  }
-
-  function setup() {
-    window.addPortalHighlighter('Mods: Multi Hack (Rarity)', window.plugin.highlightMultiHack.portalHighlight);
-  }
+  const setup = function () {
+    window.addPortalHighlighter('Multi Hack Mods (Rarity)', window.plugin.multiHackHighlighter.highlight);
+  };
 
   setup.info = plugin_info;
   if (!window.bootPlugins) window.bootPlugins = [];
@@ -61,5 +62,5 @@ function wrapper(plugin_info) {
 }
 
 const script = document.createElement('script');
-script.appendChild(document.createTextNode('('+ wrapper +')({ "pluginId": "highlight-multihack" });'));
+script.appendChild(document.createTextNode('(' + wrapper + ')({});'));
 (document.body || document.head || document.documentElement).appendChild(script);
