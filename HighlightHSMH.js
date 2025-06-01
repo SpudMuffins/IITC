@@ -2,7 +2,7 @@
 // @id             hs-mh-highlight@spudmuffins
 // @name           Highlight: Heat Sink / Multi Hack with Rarity
 // @category       Highlighter
-// @version        1.2.0
+// @version        1.3.0
 // @namespace      https://github.com/SpudMuffins/IITC
 // @description    Dropdown highlight: Color-coded by mod rarity. Hides portals without Heat Sink or Multi Hack mods. Pattern for both present.
 // @include        https://intel.ingress.com/*
@@ -39,9 +39,8 @@ function wrapper(plugin_info) {
 
     if (hasHeat && hasMulti) {
       const path = portal._path;
-      const patternId = 'modsHighlightPattern';
-      const defs = document.getElementById('plugin-modsHighlight-defs') || window.plugin.modsHighlight.createPatternDef();
-      path.setStyle({ fill: `url(#${patternId})`, opacity: 1 });
+      window.plugin.modsHighlight.ensurePatternDef();
+      path.setStyle({ fill: 'url(#modsHighlightPattern)', opacity: 1 });
     } else if (hasHeat) {
       portal.setStyle({ fillColor: hasHeat, fillOpacity: 1, opacity: 1 });
     } else if (hasMulti) {
@@ -51,7 +50,9 @@ function wrapper(plugin_info) {
     }
   };
 
-  window.plugin.modsHighlight.createPatternDef = function () {
+  window.plugin.modsHighlight.ensurePatternDef = function () {
+    if (document.getElementById('plugin-modsHighlight-defs')) return;
+
     const svgRoot = document.querySelector('svg');
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
     defs.setAttribute('id', 'plugin-modsHighlight-defs');
@@ -60,12 +61,24 @@ function wrapper(plugin_info) {
         <path d="M-2,2 l4,-4 M0,8 l8,-8 M6,10 l4,-4" style="stroke:#c71585; stroke-width:2" />
       </pattern>`;
     svgRoot.insertBefore(defs, svgRoot.firstChild);
-    return defs;
+  };
+
+  window.plugin.modsHighlight.refreshAllPortals = function () {
+    for (const guid in window.portals) {
+      const portal = window.portals[guid];
+      window.plugin.modsHighlight.portalHighlight({ portal });
+    }
   };
 
   const setup = function () {
     window.addPortalHighlighter('Mods: Heat Sink / Multi Hack (with Rarity)', window.plugin.modsHighlight.portalHighlight);
-    window.plugin.modsHighlight.createPatternDef();
+    window.plugin.modsHighlight.ensurePatternDef();
+
+    window.addHook('highlightChange', function () {
+      if (window._current_highlighter === 'Mods: Heat Sink / Multi Hack (with Rarity)') {
+        window.plugin.modsHighlight.refreshAllPortals();
+      }
+    });
   };
 
   setup.info = plugin_info;
