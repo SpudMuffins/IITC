@@ -1,58 +1,60 @@
 // ==UserScript==
-// @id             highlight-heatsink@spudmuffins
-// @name           Highlight: Heat Sink Rarity
-// @category       Layer
+// @id             highlight-heatsinks@spudmuffins
+// @name           Highlight: Heat Sink Mods (by Rarity)
+// @category       Highlighter
 // @version        1.0.0
-// @description    Highlights portals with Heat Sink mods. Color by rarity. Gray if absent.
+// @description    Highlights portals that have Heat Sink mods: Common = green, Rare = purple, Very Rare = pink. Gray ring if no Heat Sink.
 // @namespace      https://github.com/SpudMuffins/IITC
-// @include        https://*.ingress.com/intel*
-// @match          https://*.ingress.com/intel*
+// @match          https://intel.ingress.com/*
+// @include        https://intel.ingress.com/*
 // @grant          none
 // ==/UserScript==
 
 function wrapper(plugin_info) {
-  if (typeof window.plugin !== 'function') window.plugin = () => {};
-  window.plugin.highlightHeatSink = {};
+  if (typeof window.plugin !== 'function') window.plugin = function () {};
+  window.plugin.heatSinkHighlighter = {};
 
+  // Rarity colors
   const COLORS = {
-    COMMON: '#32CD32',
-    RARE: '#800080',
-    VERY_RARE: '#FF69B4',
-    NONE: '#cccccc'
+    COMMON: 'limegreen',
+    RARE: 'blueviolet',
+    VERY_RARE: 'deeppink',
+    NONE: 'gray',
   };
 
-  const RARITY_MAP = {
-    'common': COLORS.COMMON,
-    'rare': COLORS.RARE,
-    'very rare': COLORS.VERY_RARE
-  };
+  function getRarityColor(rarity) {
+    if (!rarity) return COLORS.NONE;
+    switch (rarity.toLowerCase()) {
+      case 'common': return COLORS.COMMON;
+      case 'rare': return COLORS.RARE;
+      case 'very rare': return COLORS.VERY_RARE;
+      default: return COLORS.NONE;
+    }
+  }
 
-  window.plugin.highlightHeatSink.portalHighlight = function (data) {
+  window.plugin.heatSinkHighlighter.highlight = function (data) {
     const portal = data.portal;
     const details = portal.options.data;
-    if (!details || !Array.isArray(details.mods)) return;
+    if (!details || !details.mods || !Array.isArray(details.mods)) return;
 
-    let best = null;
-    for (const mod of details.mods) {
-      if (!mod || !mod.name || !mod.rarity) continue;
-      const name = mod.name.toLowerCase();
-      const rarity = mod.rarity.toLowerCase();
-      if (name.includes('heat')) {
-        if (!best || rarityPriority(rarity) > rarityPriority(best)) best = rarity;
-      }
+    const heatSinkMods = details.mods.filter(mod => mod && mod.name?.toLowerCase().includes('heat'));
+
+    if (heatSinkMods.length === 0) {
+      portal.setStyle({ color: COLORS.NONE, opacity: 0.2 });
+    } else {
+      // Use the highest rarity for display color
+      const rarityOrder = ['common', 'rare', 'very rare'];
+      const rarities = heatSinkMods.map(mod => mod.rarity?.toLowerCase()).filter(Boolean);
+      let selectedRarity = rarities.sort((a, b) => rarityOrder.indexOf(b) - rarityOrder.indexOf(a))[0] || 'common';
+
+      const ringColor = getRarityColor(selectedRarity);
+      portal.setStyle({ color: ringColor, fillOpacity: 0.7, opacity: 1 });
     }
-
-    const color = best ? RARITY_MAP[best] : COLORS.NONE;
-    data.portal.setStyle({ fillColor: color, fillOpacity: 1, opacity: 1 });
   };
 
-  function rarityPriority(rarity) {
-    return rarity === 'very rare' ? 3 : rarity === 'rare' ? 2 : rarity === 'common' ? 1 : 0;
-  }
-
-  function setup() {
-    window.addPortalHighlighter('Mods: Heat Sink (Rarity)', window.plugin.highlightHeatSink.portalHighlight);
-  }
+  const setup = function () {
+    window.addPortalHighlighter('Heat Sink Mods (Rarity)', window.plugin.heatSinkHighlighter.highlight);
+  };
 
   setup.info = plugin_info;
   if (!window.bootPlugins) window.bootPlugins = [];
@@ -61,5 +63,5 @@ function wrapper(plugin_info) {
 }
 
 const script = document.createElement('script');
-script.appendChild(document.createTextNode('('+ wrapper +')({ "pluginId": "highlight-heatsink" });'));
+script.appendChild(document.createTextNode('(' + wrapper + ')({});'));
 (document.body || document.head || document.documentElement).appendChild(script);
