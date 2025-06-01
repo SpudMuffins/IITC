@@ -1,51 +1,56 @@
 // ==UserScript==
 // @id             highlight-multihack@spudmuffins
-// @name           Highlight: Multi Hack Mods (by Rarity)
+// @name           Highlight: Multi Hack Mods
 // @category       Highlighter
-// @version        1.0.1
-// @description    Highlights portals with Multi Hack mods by rarity
+// @version        0.1.1
 // @namespace      https://github.com/SpudMuffins/IITC
+// @description    Highlights portals with Multi Hack mods: Common (green), Rare (purple), Very Rare (pink). Others are dimmed.
 // @match          https://intel.ingress.com/*
 // @grant          none
 // ==/UserScript==
 
 function wrapper(plugin_info) {
   if (typeof window.plugin !== 'function') window.plugin = () => {};
-
   window.plugin.multiHackHighlighter = {};
 
-  // Core highlighter function
-  window.plugin.multiHackHighlighter.highlight = function (data) {
-    const mods = data.portal.options.data.mods;
-    if (!mods) return;
+  // Colors by rarity
+  const rarityColors = {
+    COMMON: 'limegreen',
+    RARE: 'blueviolet',
+    VERY_RARE: 'deeppink',
+    UNKNOWN: 'gray',
+  };
 
-    let hasCommon = false;
-    let hasRare = false;
-    let hasVeryRare = false;
+  window.plugin.multiHackHighlighter.highlight = function (data) {
+    const portal = data.portal;
+    const mods = portal.options.data?.mods;
+
+    if (!mods || !mods.length) {
+      // Dim portals with no mods but still keep them clickable
+      portal.setStyle({ fillOpacity: 0.1, strokeOpacity: 0.1 });
+      return;
+    }
+
+    let foundRarity = null;
 
     for (const mod of mods) {
-      if (!mod?.name?.toLowerCase().includes('multi')) continue;
-
-      const rarity = (mod.rarity || '').toLowerCase();
-      if (rarity === 'common') hasCommon = true;
-      else if (rarity === 'rare') hasRare = true;
-      else if (rarity === 'very_rare' || rarity === 'very rare') hasVeryRare = true;
+      if (!mod || !mod.name?.toLowerCase().includes('multi')) continue;
+      foundRarity = mod.rarity?.toUpperCase() || 'UNKNOWN';
+      break;
     }
 
-    if (hasCommon || hasRare || hasVeryRare) {
-      data.portal.setStyle({
-        fillColor: hasVeryRare ? 'deeppink' : hasRare ? 'purple' : hasCommon ? 'green' : '#666',
-        fillOpacity: 1,
-        opacity: 1
-      });
+    if (foundRarity) {
+      const color = rarityColors[foundRarity] || rarityColors.UNKNOWN;
+      portal.setStyle({ fillColor: color, fillOpacity: 0.7, stroke: true });
     } else {
-      data.portal.setStyle({ fillOpacity: 0, opacity: 0 });
+      // If no Multi Hack, dim the portal
+      portal.setStyle({ fillOpacity: 0.1, strokeOpacity: 0.1 });
     }
   };
 
-  const setup = () => {
-    window.addPortalHighlighter('Multi Hack Highlighter', window.plugin.multiHackHighlighter.highlight);
-  };
+  function setup() {
+    window.addPortalHighlighter('Mods: Multi Hack (by rarity)', window.plugin.multiHackHighlighter.highlight);
+  }
 
   setup.info = plugin_info;
   if (!window.bootPlugins) window.bootPlugins = [];
@@ -53,6 +58,6 @@ function wrapper(plugin_info) {
   if (window.iitcLoaded) setup();
 }
 
-var script = document.createElement('script');
+const script = document.createElement('script');
 script.appendChild(document.createTextNode('(' + wrapper + ')({});'));
 (document.body || document.head || document.documentElement).appendChild(script);
