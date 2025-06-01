@@ -2,7 +2,7 @@
 // @id             highlight-mods@yourname
 // @name           Highlight Portals with Heat Sink or Multi Hack
 // @category       Layer
-// @version        0.2.1
+// @version        0.2.2
 // @namespace      https://github.com/yourname/iitc-plugins
 // @description    Toggleable highlight: Heat Sink (pink), Multi Hack (purple), both (textured). Hides others.
 // @include        https://*.ingress.com/intel*
