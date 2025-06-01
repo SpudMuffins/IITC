@@ -43,4 +43,44 @@ function wrapper(plugin_info) {
       window.addHook('mapDataRefreshEnd', this.refreshAll);
     },
 
-    refreshAll: functi
+    refreshAll: function () {
+      const layer = window.plugin.moddedPortals.layerGroup;
+      if (!layer) return;
+
+      layer.clearLayers();
+
+      for (const guid in window.portals) {
+        const portal = window.portals[guid];
+        const data = portal.options.data;
+        if (!data || !Array.isArray(data.mods)) continue;
+
+        const hasMod = data.mods.some(mod => mod !== null);
+        if (hasMod) {
+          const circle = L.circle(portal.getLatLng(), {
+            radius: 20,
+            color: 'orange',
+            fillColor: 'orange',
+            fillOpacity: 0.5,
+            weight: 2,
+            interactive: false,
+          });
+          circle.addTo(layer);
+        }
+      }
+    }
+  };
+
+  const setup = window.plugin.moddedPortals.setup.bind(window.plugin.moddedPortals);
+  setup.info = plugin_info;
+  if (!window.bootPlugins) window.bootPlugins = [];
+  window.bootPlugins.push(setup);
+  if (window.iitcLoaded) setup();
+}
+
+const script = document.createElement('script');
+script.appendChild(document.createTextNode('(' + wrapper + ')(' + JSON.stringify({
+  buildName: 'moddedPortals',
+  pluginId: 'mod-finder-layer@spudmuffins',
+  dateTimeVersion: '2025-05-31'
+}) + ');'));
+document.body.appendChild(script);
