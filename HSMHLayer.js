@@ -1,116 +1,128 @@
 // ==UserScript==
-// @id             highlight-mods@yourname
-// @name           Highlight Portals: Heat Sink / Multi Hack + Rarity
-// @category       Highlighter
-// @version        0.2.0
-// @description    Highlights portals with Heat Sink (pink), Multi Hack (purple), both (hatched). Hides others. Shows mod rarity in tooltip.
-// @namespace      https://github.com/yourname/iitc-plugins
-// @downloadURL    https://yourname.github.io/iitc-plugins/highlight-mods.user.js
-// @updateURL      https://yourname.github.io/iitc-plugins/highlight-mods.user.js
+// @id             hs-mh-layer@spudmuffins
+// @name           Mods Layer: Heat Sink / Multi Hack
+// @category       Layer
+// @version        1.0.0
+// @namespace      https://github.com/SpudMuffins/IITC
+// @description    Toggleable map layer showing only portals with Heat Sink or Multi Hack. Color-coded, with pattern if both mods present.
 // @include        https://intel.ingress.com/*
-// @match          https://intel.ingress.com/*
 // @grant          none
 // ==/UserScript==
 
 function wrapper(plugin_info) {
   if (typeof window.plugin !== 'function') window.plugin = function () {};
-  window.plugin.highlightMods = {};
 
-  const COLOR_HEAT = 'deeppink';
-  const COLOR_MULTI = 'purple';
+  window.plugin.modsLayer = {
+    layerGroup: null,
+    enabled: false,
 
-  function createPattern() {
-    const svg = document.querySelector('svg');
-    if (!svg || document.getElementById('highlightMods-pattern')) return;
+    COLOR_HEAT: 'deeppink',
+    COLOR_MULTI: 'purple',
 
-    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-    defs.setAttribute('id', 'highlightMods-pattern');
-    defs.innerHTML = `
-      <pattern id="modHatch" patternUnits="userSpaceOnUse" width="8" height="8">
-        <path d="M-2,2 l4,-4 M0,8 l8,-8 M6,10 l4,-4"
-              style="stroke:${COLOR_MULTI}; stroke-width:2" />
-      </pattern>`;
-    svg.insertBefore(defs, svg.firstChild);
-  }
+    onPortalData: function (portal) {
+      if (!window.plugin.modsLayer.enabled) return;
 
-  function highlightPortal(data) {
-    const portal = data.portal;
-    const mods = portal.options?.data?.mods;
+      const data = portal.options.data;
+      if (!data || !Array.isArray(data.mods)) return;
 
-    if (!mods || mods.length === 0) {
-      portal.setStyle({ fillOpacity: 0, opacity: 0 });
-      return;
-    }
+      let hasHeat = false;
+      let hasMulti = false;
 
-    let hasHeat = false;
-    let hasMulti = false;
-    const raritySummary = [];
-
-    for (const mod of mods) {
-      if (!mod || !mod.name) continue;
-      const name = mod.name.toLowerCase();
-      const rarity = mod.rarity?.replace(/_/g, ' ').toUpperCase() || 'UNKNOWN';
-
-      if (name.includes('heat')) {
-        hasHeat = true;
-        raritySummary.push(`Heat Sink (${rarity})`);
+      for (const mod of data.mods) {
+        if (!mod) continue;
+        const name = mod.name?.toLowerCase();
+        if (!name) continue;
+        if (name.includes('heat')) hasHeat = true;
+        if (name.includes('multi')) hasMulti = true;
       }
-      if (name.includes('multi')) {
-        hasMulti = true;
-        raritySummary.push(`Multi Hack (${rarity})`);
+
+      if (hasHeat || hasMulti) {
+        const color = hasHeat && hasMulti ? 'url(#modsLayerPattern)' : hasHeat ? window.plugin.modsLayer.COLOR_HEAT : window.plugin.modsLayer.COLOR_MULTI;
+
+        const circle = L.circle(portal.getLatLng(), {
+          radius: 20,
+          color: hasHeat && hasMulti ? '#c71585' : color,
+          fillColor: hasHeat && hasMulti ? '#c71585' : color,
+          fillOpacity: 0.8,
+          weight: 2
+        });
+        circle.addTo(window.plugin.modsLayer.layerGroup);
       }
-    }
+    },
 
-    if (hasHeat && hasMulti) {
-      createPattern();
-      const path = portal._path;
-      if (path) path.setStyle({ fill: 'url(#modHatch)', opacity: 1 });
-    } else if (hasHeat) {
-      portal.setStyle({ fillColor: COLOR_HEAT, fillOpacity: 1, opacity: 1 });
-    } else if (hasMulti) {
-      portal.setStyle({ fillColor: COLOR_MULTI, fillOpacity: 1, opacity: 1 });
-    } else {
-      portal.setStyle({ fillOpacity: 0, opacity: 0 });
-      return;
-    }
+    update: function () {
+      window.plugin.modsLayer.layerGroup.clearLayers();
 
-    // Append rarity to the tooltip
-    if (raritySummary.length > 0) {
-      const desc = raritySummary.join(', ');
-      if (portal.options.data) {
-        portal.options.data._modSummary = desc;
-      }
-    }
-  }
+      if (!window.plugin.modsLayer.enabled) return;
 
-  function setup() {
-    window.addPortalHighlighter('Mods: Heat/Multi-Hack + Rarity', highlightPortal);
+      for (const guid in window.portals) {
+        const portal = window.portals[guid];
+        const data = portal.options.data;
+        if (!data || !Array.isArray(data.mods)) continue;
 
-    // Hook into portal details to show rarity summary
-    const origFunc = window.renderPortalDetails;
-    window.renderPortalDetails = function (guid) {
-      origFunc(guid);
-      const portal = window.portals[guid];
-      const modSummary = portal?.options?.data?._modSummary;
-      if (modSummary) {
-        const infoBox = document.getElementById('portaldetails');
-        if (infoBox) {
-          const summaryNode = document.createElement('div');
-          summaryNode.style.marginTop = '4px';
-          summaryNode.style.color = '#999';
-          summaryNode.textContent = 'Mods: ' + modSummary;
-          infoBox.appendChild(summaryNode);
+        let hasHeat = false;
+        let hasMulti = false;
+        for (const mod of data.mods) {
+          if (!mod) continue;
+          const name = mod.name?.toLowerCase();
+          if (!name) continue;
+          if (name.includes('heat')) hasHeat = true;
+          if (name.includes('multi')) hasMulti = true;
+        }
+
+        if (hasHeat || hasMulti) {
+          window.plugin.modsLayer.onPortalData(portal);
+          portal.setStyle({ opacity: 1, fillOpacity: 1 });
+        } else {
+          portal.setStyle({ opacity: 0, fillOpacity: 0 });
         }
       }
-    };
-  }
+    },
 
+    addPattern: function () {
+      const svgRoot = document.querySelector('svg');
+      if (!svgRoot || document.getElementById('modsLayerPattern')) return;
+
+      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      defs.innerHTML = `
+        <pattern id="modsLayerPattern" patternUnits="userSpaceOnUse" width="8" height="8">
+          <path d="M-2,2 l4,-4 M0,8 l8,-8 M6,10 l4,-4" style="stroke:#c71585; stroke-width:2" />
+        </pattern>`;
+
+      defs.setAttribute('id', 'modsLayerPatternDefs');
+      svgRoot.insertBefore(defs, svgRoot.firstChild);
+    },
+
+    toggle: function (enabled) {
+      window.plugin.modsLayer.enabled = enabled;
+      window.plugin.modsLayer.update();
+    },
+
+    setup: function () {
+      window.plugin.modsLayer.layerGroup = new L.LayerGroup();
+      window.addLayerGroup('Mods: Heat/Multi-Hack', window.plugin.modsLayer.layerGroup, true);
+
+      map.on('layeradd layerremove', function (e) {
+        if (e.layer === window.plugin.modsLayer.layerGroup) {
+          window.plugin.modsLayer.toggle(map.hasLayer(window.plugin.modsLayer.layerGroup));
+        }
+      });
+
+      window.addHook('portalAdded', ({ portal }) => {
+        if (window.plugin.modsLayer.enabled) window.plugin.modsLayer.onPortalData(portal);
+      });
+
+      window.plugin.modsLayer.addPattern();
+    }
+  };
+
+  const setup = window.plugin.modsLayer.setup;
   setup.info = plugin_info;
   if (!window.bootPlugins) window.bootPlugins = [];
   window.bootPlugins.push(setup);
   if (window.iitcLoaded) setup();
 }
 
-const script = document.createElement('script');
-script.appendChild(document.createTextNode('('+ wrapper +')({ "buildName": "highlight-mods", "pluginId": "highlight-mods@yourname", "dateTimeVersion": "2025-05-31" });'));
+var script = document.createElement('script');
+script.appendChild(document.createTextNode('(' + wrapper + ')({"buildName":"modsLayer","pluginId":"hs-mh-layer@spudmuffins","dateTime":"2025-05-31"});'));
 document.body.appendChild(script);
