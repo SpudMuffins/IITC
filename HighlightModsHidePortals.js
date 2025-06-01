@@ -2,7 +2,7 @@
 // @id             highlight-mods@yourname
 // @name           Highlight Portals with Heat Sink or Multi Hack
 // @category       Layer
-// @version        0.1.1
+// @version        0.1.2
 // @namespace      https://github.com/yourname/iitc-plugins
 // @description    Highlights portals with Heat Sink (pink), Multi Hack (purple), or both (textured). Hides all other portals.
 // @include        https://*.ingress.com/intel*
@@ -19,12 +19,14 @@ function wrapper(plugin_info) {
   window.plugin.highlightMods.COLOR_MULTI = 'purple';
 
   window.plugin.highlightMods.portalHighlight = function (data) {
-    const mods = data.portal.options.data.mods;
-    if (!mods) {
-      data.portal.setStyle({ fillOpacity: 0, opacity: 0 });
+    const portalData = data.portal.options.data;
+
+    if (!portalData || !Array.isArray(portalData.mods)) {
+      // Portal not fully loaded — don't change anything
       return;
     }
 
+    const mods = portalData.mods;
     let hasHeat = false;
     let hasMulti = false;
 
@@ -37,7 +39,6 @@ function wrapper(plugin_info) {
     }
 
     if (hasHeat && hasMulti) {
-      // Both: add striped pattern using SVG
       const path = data.portal._path;
       const patternId = 'diagonalHatch';
       const defs = document.getElementById('plugin-highlightMods-defs') || createPatternDef();
@@ -47,7 +48,7 @@ function wrapper(plugin_info) {
     } else if (hasMulti) {
       data.portal.setStyle({ fillColor: window.plugin.highlightMods.COLOR_MULTI, fillOpacity: 1, opacity: 1 });
     } else {
-      // Hide other portals
+      // Hide fully loaded portals that have neither mod
       data.portal.setStyle({ fillOpacity: 0, opacity: 0 });
     }
   };
