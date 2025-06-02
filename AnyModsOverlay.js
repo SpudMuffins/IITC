@@ -1,85 +1,68 @@
 // ==UserScript==
-// @id             iitc-plugin-overlay-mods-installed
-// @name           IITC plugin: Overlay - Portals with Mods
+// @id             overlay-mods-installed
+// @name           Overlay: Portals with Mods
 // @category       Layer
-// @version        0.2.0
-// @description    [overlay v0.2.0] Adds an overlay that marks portals with one or more mods installed.
+// @version        0.3.0
+// @description    [overlay v0.3.0] Clearly highlight portals that have mods installed.
 // @include        https://intel.ingress.com/intel*
 // @match          https://intel.ingress.com/intel*
 // @grant          none
 // ==/UserScript==
 
-function wrapper(plugin_info) {
-  if (typeof window.plugin !== 'object') window.plugin = {};
-  window.plugin.modsOverlay = function () {};
+window.plugin.modsOverlay = function () {};
+window.plugin.modsOverlay.layerGroup = new L.LayerGroup();
+window.addLayerGroup('Portals with Mods', window.plugin.modsOverlay.layerGroup, true);
 
-  const self = window.plugin.modsOverlay;
+window.plugin.modsOverlay.MIN_ZOOM = 15;
 
-  self.layerGroup = new L.LayerGroup();
-  self.layerName = 'Portals with Mods';
-
-  self.setup = function () {
-    window.addLayerGroup(self.layerName, self.layerGroup, true);
-    window.addHook('portalDetailLoaded', self.onPortalDetailLoaded);
-    window.map.on('moveend', self.checkVisiblePortals);
-    self.checkVisiblePortals();
-  };
-
-  self.onPortalDetailLoaded = function (data) {
-    const portal = window.portals[data.guid];
-    const mods = data.details.mods;
-
-    if (portal && mods && mods.some(m => m)) {
-      const latlng = portal.getLatLng();
-
-      const circle = L.circleMarker(latlng, {
-        radius: 18,
-        color: '#ff00ff',
-        weight: 3,
-        opacity: 0.7,
-        fillOpacity: 0,
-        interactive: false
-      });
-
-      self.layerGroup.addLayer(circle);
-    }
-  };
-
-  self.checkVisiblePortals = function () {
-    const zoom = window.map.getZoom();
-    if (zoom < 15) {
-      return;
-    }
-
-    self.layerGroup.clearLayers();
-
-    const bounds = window.map.getBounds();
-
-    for (const guid in window.portals) {
-      const portal = window.portals[guid];
-      if (!portal) continue;
-
-      const latlng = portal.getLatLng();
-      if (bounds.contains(latlng)) {
-        window.portalDetail.request(guid);
-      }
-    }
-  };
-
-  const setup = self.setup;
-  setup.info = plugin_info;
-  if (window.iitcLoaded) {
-    setup();
-  } else {
-    window.bootPlugins = window.bootPlugins || [];
-    window.bootPlugins.push(setup);
+window.plugin.modsOverlay.updateOverlay = function () {
+  const zoom = window.map.getZoom();
+  if (zoom < window.plugin.modsOverlay.MIN_ZOOM) {
+    window.plugin.modsOverlay.layerGroup.clearLayers();
+    return;
   }
+
+  window.plugin.modsOverlay.layerGroup.clearLayers();
+  const bounds = window.map.getBounds();
+
+  for (const guid in window.portals) {
+    const portal = window.portals[guid];
+    if (bounds.contains(portal.getLatLng())) {
+      window.portalDetail.request(guid);
+    }
+  }
+};
+
+window.plugin.modsOverlay.onPortalDetailLoaded = function (data) {
+  const mods = data.details.mods;
+  if (!mods || mods.every(mod => mod === null)) return;
+
+  const portal = window.portals[data.guid];
+  if (!portal) return;
+
+  const circle = L.circleMarker(portal.getLatLng(), {
+    radius: 18,
+    color: '#ff00ff',
+    weight: 3,
+    opacity: 0.7,
+    fillOpacity: 0,
+    interactive: false,
+  });
+
+  window.plugin.modsOverlay.layerGroup.addLayer(circle);
+};
+
+function setup() {
+  window.addHook('mapDataRefreshEnd', window.plugin.modsOverlay.updateOverlay);
+  window.addHook('portalDetailLoaded', window.plugin.modsOverlay.onPortalDetailLoaded);
+  window.plugin.modsOverlay.updateOverlay();
 }
 
-const script = document.createElement('script');
-script.appendChild(document.createTextNode('(' + wrapper + ')(' + JSON.stringify({
-  buildName: 'overlay-mods-installed',
-  dateTimeVersion: '2025-06-01',
-  pluginId: 'overlay-mods-installed'
-}) + ');'));
-(document.body || document.head || document.documentElement).appendChild(script);
+setup.info = { pluginId: 'overlay-mods-installed', version: '0.3.0' };
+
+if (window.iitcLoaded) {
+  setup();
+} else {
+  window.bootPlugins = window.bootPlugins || [];
+  window.bootPlugins.push(setup);
+}
