@@ -1,78 +1,93 @@
 // ==UserScript==
 // @id             iitc-plugin-highlight-portals-with-mods
-// @name           Highlight Portals with Mods
+// @name           IITC plugin: Highlight Portals with Mods
 // @category       Highlighter
-// @version        0.3.0
-// @description    Highlights portals that have one or more mods installed.
+// @version        0.4.0
+// @description    [highlighter v0.4.0] Highlights portals with one or more mods installed.
 // @include        https://intel.ingress.com/intel*
 // @match          https://intel.ingress.com/intel*
 // @grant          none
 // ==/UserScript==
 
-function highlightWithMods(data) {
-  const d = data.portal.options.data;
-  const style = {};
+function wrapper(plugin_info) {
+  // Ensure plugin namespace
+  if (typeof window.plugin !== 'object') window.plugin = {};
+  window.plugin.highlightModsInstalled = function () {};
 
-  if (d.mods && d.mods.some(mod => mod !== null)) {
-    style.fillColor = window.COLOR_MOD;
-    style.fillOpacity = 0.6;
-  }
+  const self = window.plugin.highlightModsInstalled;
 
-  data.portal.setStyle(style);
-}
+  // Main highlighter function
+  self.highlight = function (data) {
+    const d = data.portal.options.data;
+    const style = {};
 
-function requestDetailsForVisiblePortals() {
-  const bounds = window.map.getBounds();
-  const zoom = window.map.getZoom();
-
-  for (const guid in window.portals) {
-    const portal = window.portals[guid];
-    if (!portal) continue;
-
-    const latlng = portal.getLatLng();
-    if (bounds.contains(latlng)) {
-      window.portalDetail.request(guid);
+    if (d.mods && d.mods.some(mod => mod !== null)) {
+      style.fillColor = window.COLOR_MOD;
+      style.fillOpacity = 0.6;
     }
-  }
-}
 
-function setup() {
-  // Register highlighter
-  window.addPortalHighlighter('Mods Installed', highlightWithMods);
+    data.portal.setStyle(style);
+  };
 
-  // Highlight portals as full details are loaded
-  window.addHook('portalDetailLoaded', function (data) {
-    const portal = window.portals[data.guid];
-    if (portal && window._currentHighlighter === 'Mods Installed') {
-      highlightWithMods({ portal });
-    }
-  });
+  // Request full portal details for visible portals
+  self.requestVisiblePortalDetails = function () {
+    const bounds = window.map.getBounds();
 
-  // When highlighter is selected, load portal details
-  const oldSetHighlighter = window.setActiveHighlighter;
+    for (const guid in window.portals) {
+      const portal = window.portals[guid];
+      if (!portal) continue;
 
-  window.setActiveHighlighter = function (name) {
-    oldSetHighlighter(name);
-    if (name === 'Mods Installed') {
-      // Trigger full data load + rehighlight
-      requestDetailsForVisiblePortals();
-
-      // Give time for detail requests to return, then re-highlight
-      setTimeout(() => {
-        for (const guid in window.portals) {
-          const portal = window.portals[guid];
-          if (portal) {
-            highlightWithMods({ portal });
-          }
-        }
-      }, 1000); // Delay to allow detail loads
+      const latlng = portal.getLatLng();
+      if (bounds.contains(latlng)) {
+        window.portalDetail.request(guid);
+      }
     }
   };
+
+  // Setup function
+  self.setup = function () {
+    window.addPortalHighlighter('Mods Installed', self.highlight);
+
+    window.addHook('portalDetailLoaded', function (data) {
+      const portal = window.portals[data.guid];
+      if (portal && window._currentHighlighter === 'Mods Installed') {
+        self.highlight({ portal });
+      }
+    });
+
+    const oldSetHighlighter = window.setActiveHighlighter;
+    window.setActiveHighlighter = function (name) {
+      oldSetHighlighter(name);
+      if (name === 'Mods Installed') {
+        self.requestVisiblePortalDetails();
+        setTimeout(() => {
+          for (const guid in window.portals) {
+            const portal = window.portals[guid];
+            if (portal) {
+              self.highlight({ portal });
+            }
+          }
+        }, 1000);
+      }
+    };
+  };
+
+  // Register setup
+  const setup = self.setup;
+  setup.info = plugin_info;
+  if (window.iitcLoaded) {
+    setup();
+  } else {
+    window.bootPlugins = window.bootPlugins || [];
+    window.bootPlugins.push(setup);
+  }
 }
 
-if (window.iitcLoaded) {
-  setup();
-} else {
-  window.bootPlugins = window.bootPlugins || [];
-  window.bootPlugins.push(setup);
-}
+// Inject wrapper
+var script = document.createElement('script');
+script.appendChild(document.createTextNode('(' + wrapper + ')(' + JSON.stringify({
+  buildName: 'highlight-portals-with-mods',
+  dateTimeVersion: '2025-06-01',
+  pluginId: 'highlight-portals-with-mods'
+}) + ');'));
+(document.body || document.head || document.documentElement).appendChild(script);
