@@ -2,8 +2,8 @@
 // @id             iitc-plugin-overlay-mods-installed
 // @name           IITC plugin: Overlay - Portals with Mods
 // @category       Layer
-// @version        0.1.0
-// @description    [overlay v0.1.0] Adds a visual overlay to highlight portals with one or more mods installed.
+// @version        0.1.1
+// @description    [overlay v0.1.1] Adds a visual overlay to highlight portals with one or more mods installed.
 // @include        https://intel.ingress.com/intel*
 // @match          https://intel.ingress.com/intel*
 // @grant          none
@@ -18,13 +18,24 @@ function wrapper(plugin_info) {
   self.layerGroup = null;
 
   self.setup = function () {
-    self.layerGroup = new L.LayerGroup();
-    window.addLayerGroup('Portals with Mods', self.layerGroup, true);
+    console.log('[Mods Overlay] Setup started');
 
-    // Hook for when new portal detail is loaded
+    self.layerGroup = new L.LayerGroup();
+
+    // Try to register with IITC layer chooser
+    if (window.layerChooser && typeof window.layerChooser.addOverlay === 'function') {
+      console.log('[Mods Overlay] Registering overlay with layerChooser');
+      window.map.addLayer(self.layerGroup); // Needed before adding to chooser
+      window.layerChooser.addOverlay(self.layerGroup, 'Portals with Mods');
+    } else {
+      console.warn('[Mods Overlay] Could not register with layerChooser – falling back');
+      window.map.addLayer(self.layerGroup);
+    }
+
+    // Hook: when portal details load, check for mods
     window.addHook('portalDetailLoaded', self.onPortalDetailLoaded);
 
-    // Hook for map movement (pan/zoom)
+    // Hook: when map pans/zooms
     window.map.on('moveend', self.checkVisiblePortals);
 
     // Initial scan
@@ -48,14 +59,22 @@ function wrapper(plugin_info) {
       });
 
       self.layerGroup.addLayer(circle);
+
+      console.log(`[Mods Overlay] Modded portal overlay added: ${data.guid}`);
     }
   };
 
   self.checkVisiblePortals = function () {
-    const bounds = window.map.getBounds();
+    const zoom = window.map.getZoom();
+    if (zoom < 15) {
+      console.warn('[Mods Overlay] Zoom in to see mod overlays (level 15+ recommended)');
+      return;
+    }
 
-    // Clear existing markers
+    console.log('[Mods Overlay] Scanning visible portals...');
     self.layerGroup.clearLayers();
+
+    const bounds = window.map.getBounds();
 
     for (const guid in window.portals) {
       const portal = window.portals[guid];
@@ -63,13 +82,15 @@ function wrapper(plugin_info) {
 
       const latlng = portal.getLatLng();
       if (bounds.contains(latlng)) {
-        window.portalDetail.request(guid); // Triggers `portalDetailLoaded` later
+        window.portalDetail.request(guid);
       }
     }
   };
 
   const setup = self.setup;
   setup.info = plugin_info;
+
+  // Make sure setup runs
   if (window.iitcLoaded) {
     setup();
   } else {
