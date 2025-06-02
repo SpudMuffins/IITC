@@ -2,34 +2,36 @@
 // @id             highlight-portals-with-mods
 // @name           IITC plugin: Highlight Portals with Mods
 // @category       Highlighter
-// @version        0.2
+// @version        0.3
 // @description    Highlight portals that have at least one mod installed.
 // @include        https://intel.ingress.com/intel*
 // @match          https://intel.ingress.com/intel*
 // @grant          none
 // ==/UserScript==
 
+function highlightPortalsWithMods(data) {
+  const portalData = data.portal.options.data;
+
+  let hasMods = false;
+  if (portalData && Array.isArray(portalData.mods)) {
+    hasMods = portalData.mods.some(mod => mod !== null);
+  }
+
+  const style = {};
+  if (hasMods) {
+    style.fillColor = window.COLOR_MOD;      // use IITC default mod color
+    style.fillOpacity = 0.6;
+  }
+
+  data.portal.setStyle(style);
+}
+
 function setup() {
-  window.addPortalHighlighter('Portals with Mods', function(data) {
-    const portalData = data.portal.options.data;
-
-    if (!portalData || !Array.isArray(portalData.mods)) return;
-
-    const hasMods = portalData.mods.some(mod => mod !== null);
-    console.log('Highlighting portal:', data.portal.options.guid, 'Has mods?', hasMods);
-
-    if (hasMods) {
-      data.portal.setStyle({
-        fillColor: 'yellow',
-        fillOpacity: 0.6,
-        color: '#FFFF00'
-      });
-    }
-  });
+  window.addPortalHighlighter('Portals with Mods', highlightPortalsWithMods);
 }
 
 setup.info = {
-  version: '0.2',
+  version: '0.3',
   description: 'Highlight portals that have mods installed',
   category: 'Highlighter',
 };
