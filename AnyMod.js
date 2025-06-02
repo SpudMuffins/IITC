@@ -2,8 +2,8 @@
 // @id             iitc-plugin-highlight-portals-with-mods
 // @name           Highlight Portals with Mods
 // @category       Highlighter
-// @version        0.1.1
-// @description    Highlights portals that have one or more mods installed.
+// @version        0.2.0
+// @description    Highlights portals with one or more mods installed.
 // @include        https://intel.ingress.com/intel*
 // @match          https://intel.ingress.com/intel*
 // @grant          none
@@ -22,12 +22,21 @@ function highlightWithMods(data) {
 }
 
 function setup() {
+  // Register the highlighter
   window.addPortalHighlighter('Mods Installed', highlightWithMods);
+
+  // Listen for full portal detail load and re-highlight the updated portal
+  window.addHook('portalDetailsUpdated', function (e) {
+    const portal = window.portals[e.guid];
+    if (portal && window._currentHighlighter === 'Mods Installed') {
+      highlightWithMods({ portal });
+    }
+  });
 }
 
 if (window.iitcLoaded) {
   setup();
 } else {
-  if (typeof window.bootPlugins !== 'object') window.bootPlugins = [];
+  window.bootPlugins = window.bootPlugins || [];
   window.bootPlugins.push(setup);
 }
