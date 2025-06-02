@@ -2,8 +2,8 @@
 // @id             iitc-plugin-overlay-mods-installed
 // @name           IITC plugin: Overlay - Portals with Mods
 // @category       Layer
-// @version        0.1.1
-// @description    [overlay v0.1.1] Adds a visual overlay to highlight portals with one or more mods installed.
+// @version        0.1.2
+// @description    [overlay v0.1.2] Adds a visual overlay to highlight portals with one or more mods installed.
 // @include        https://intel.ingress.com/intel*
 // @match          https://intel.ingress.com/intel*
 // @grant          none
@@ -16,29 +16,33 @@ function wrapper(plugin_info) {
   const self = window.plugin.modsOverlay;
 
   self.layerGroup = null;
+  self.layerName = 'Portals with Mods';
 
   self.setup = function () {
     console.log('[Mods Overlay] Setup started');
 
     self.layerGroup = new L.LayerGroup();
 
-    // Try to register with IITC layer chooser
-    if (window.layerChooser && typeof window.layerChooser.addOverlay === 'function') {
-      console.log('[Mods Overlay] Registering overlay with layerChooser');
-      window.map.addLayer(self.layerGroup); // Needed before adding to chooser
-      window.layerChooser.addOverlay(self.layerGroup, 'Portals with Mods');
-    } else {
-      console.warn('[Mods Overlay] Could not register with layerChooser – falling back');
-      window.map.addLayer(self.layerGroup);
-    }
+    // Wait until layerChooser is available before adding overlay
+    const waitForLayerChooser = () => {
+      if (window.layerChooser && typeof window.layerChooser.addOverlay === 'function') {
+        console.log('[Mods Overlay] Registering overlay with layerChooser');
+        window.map.addLayer(self.layerGroup); // Required for visibility toggle
+        window.layerChooser.addOverlay(self.layerGroup, self.layerName);
+      } else {
+        console.warn('[Mods Overlay] layerChooser not ready yet. Retrying...');
+        setTimeout(waitForLayerChooser, 500);
+      }
+    };
 
-    // Hook: when portal details load, check for mods
+    waitForLayerChooser();
+
+    // Hook into portal detail loading
     window.addHook('portalDetailLoaded', self.onPortalDetailLoaded);
 
-    // Hook: when map pans/zooms
+    // Recheck on map movement
     window.map.on('moveend', self.checkVisiblePortals);
 
-    // Initial scan
     self.checkVisiblePortals();
   };
 
@@ -60,18 +64,17 @@ function wrapper(plugin_info) {
 
       self.layerGroup.addLayer(circle);
 
-      console.log(`[Mods Overlay] Modded portal overlay added: ${data.guid}`);
+      console.log(`[Mods Overlay] Added mod highlight for portal: ${data.guid}`);
     }
   };
 
   self.checkVisiblePortals = function () {
     const zoom = window.map.getZoom();
     if (zoom < 15) {
-      console.warn('[Mods Overlay] Zoom in to see mod overlays (level 15+ recommended)');
+      console.warn('[Mods Overlay] Zoom in (15+) to detect modded portals');
       return;
     }
 
-    console.log('[Mods Overlay] Scanning visible portals...');
     self.layerGroup.clearLayers();
 
     const bounds = window.map.getBounds();
@@ -85,12 +88,13 @@ function wrapper(plugin_info) {
         window.portalDetail.request(guid);
       }
     }
+
+    console.log('[Mods Overlay] Checked visible portals for mods');
   };
 
+  // IITC plugin init hook
   const setup = self.setup;
   setup.info = plugin_info;
-
-  // Make sure setup runs
   if (window.iitcLoaded) {
     setup();
   } else {
