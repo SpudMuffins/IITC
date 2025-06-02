@@ -2,8 +2,8 @@
 // @id             iitc-plugin-overlay-mods-installed
 // @name           IITC plugin: Overlay - Portals with Mods
 // @category       Layer
-// @version        0.1.3
-// @description    [overlay v0.1.3] Adds a visual overlay to highlight portals with one or more mods installed.
+// @version        0.2.0
+// @description    [overlay v0.2.0] Adds an overlay that marks portals with one or more mods installed.
 // @include        https://intel.ingress.com/intel*
 // @match          https://intel.ingress.com/intel*
 // @grant          none
@@ -15,67 +15,73 @@ function wrapper(plugin_info) {
 
   const plugin = window.plugin.modsOverlay;
 
-  // LayerGroup that will hold our mod markers
-  plugin.layerGroup = new L.LayerGroup();
+  plugin.MOD_LAYER_NAME = 'Portals with Mods';
+  plugin.MIN_ZOOM = 15;
 
-  // Add to IITC's layer control
-  window.addLayerGroup('Portals with Mods', plugin.layerGroup, true);
+  plugin.layer = new L.LayerGroup();
+  plugin.portalGuidsSeen = new Set();
 
-  // Highlight portals with mods when portal details are loaded
-  plugin.onPortalDetailLoaded = function (data) {
-    const portal = window.portals[data.guid];
-    const mods = data.details.mods;
+  plugin.setup = function () {
+    console.log('[Mods Overlay] setup()');
 
-    if (portal && mods && mods.some(m => m)) {
-      const latlng = portal.getLatLng();
+    window.addLayerGroup(plugin.MOD_LAYER_NAME, plugin.layer, true);
 
-      const circle = L.circleMarker(latlng, {
-        radius: 18,
-        color: '#ff00ff',
-        weight: 3,
-        opacity: 0.7,
-        fillOpacity: 0,
-        interactive: false
-      });
-
-      plugin.layerGroup.addLayer(circle);
-      console.log(`[Mods Overlay] Added overlay for portal: ${data.guid}`);
-    }
+    window.addHook('portalDetailLoaded', plugin.portalDetailLoaded);
+    window.addHook('mapDataRefreshEnd', plugin.updateLayer);
+    plugin.updateLayer();
   };
 
-  // Request details for all visible portals
-  plugin.checkVisiblePortals = function () {
+  plugin.portalDetailLoaded = function (data) {
+    const mods = data.details.mods;
+    const guid = data.guid;
+
+    if (!mods || !mods.some(mod => mod)) return;
+    if (plugin.portalGuidsSeen.has(guid)) return;
+
+    const portal = window.portals[guid];
+    if (!portal) return;
+
+    const latlng = portal.getLatLng();
+    const circle = L.circleMarker(latlng, {
+      radius: 18,
+      color: '#ff00ff',
+      weight: 3,
+      opacity: 0.7,
+      fillOpacity: 0,
+      interactive: false
+    });
+
+    plugin.layer.addLayer(circle);
+    plugin.portalGuidsSeen.add(guid);
+    console.log(`[Mods Overlay] Added for portal: ${guid}`);
+  };
+
+  plugin.updateLayer = function () {
     const zoom = window.map.getZoom();
-    if (zoom < 15) {
-      console.warn('[Mods Overlay] Zoom in to see modded portals (L15+)');
+    if (zoom < plugin.MIN_ZOOM) {
+      console.log('[Mods Overlay] Too zoomed out');
+      plugin.layer.clearLayers();
+      plugin.portalGuidsSeen.clear();
       return;
     }
 
-    plugin.layerGroup.clearLayers();
+    plugin.layer.clearLayers();
+    plugin.portalGuidsSeen.clear();
 
     const bounds = window.map.getBounds();
-
     for (const guid in window.portals) {
       const portal = window.portals[guid];
       if (!portal) continue;
-
       const latlng = portal.getLatLng();
       if (bounds.contains(latlng)) {
         window.portalDetail.request(guid);
       }
     }
 
-    console.log('[Mods Overlay] Requested visible portals for mod check');
+    console.log('[Mods Overlay] Requested visible portal details');
   };
 
-  // Setup all hooks
-  function setup() {
-    console.log('[Mods Overlay] Setup running');
-    window.addHook('portalDetailLoaded', plugin.onPortalDetailLoaded);
-    window.map.on('moveend', plugin.checkVisiblePortals);
-    plugin.checkVisiblePortals();
-  }
-
+  const setup = plugin.setup;
   setup.info = plugin_info;
   if (window.iitcLoaded) {
     setup();
