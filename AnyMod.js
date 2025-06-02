@@ -1,25 +1,20 @@
 // ==UserScript==
-// @id             highlight-portals-with-mods
-// @name           IITC plugin: Highlight Portals with Mods
+// @id             iitc-plugin-highlight-portals-with-mods
+// @name           Highlight Portals with Mods
 // @category       Highlighter
-// @version        0.3
-// @description    Highlight portals that have at least one mod installed.
+// @version        0.1.1
+// @description    Highlights portals that have one or more mods installed.
 // @include        https://intel.ingress.com/intel*
 // @match          https://intel.ingress.com/intel*
 // @grant          none
 // ==/UserScript==
 
-function highlightPortalsWithMods(data) {
-  const portalData = data.portal.options.data;
-
-  let hasMods = false;
-  if (portalData && Array.isArray(portalData.mods)) {
-    hasMods = portalData.mods.some(mod => mod !== null);
-  }
-
+function highlightWithMods(data) {
+  const d = data.portal.options.data;
   const style = {};
-  if (hasMods) {
-    style.fillColor = window.COLOR_MOD;      // use IITC default mod color
+
+  if (d.mods && d.mods.some(mod => mod !== null)) {
+    style.fillColor = window.COLOR_MOD;
     style.fillOpacity = 0.6;
   }
 
@@ -27,18 +22,12 @@ function highlightPortalsWithMods(data) {
 }
 
 function setup() {
-  window.addPortalHighlighter('Portals with Mods', highlightPortalsWithMods);
+  window.addPortalHighlighter('Mods Installed', highlightWithMods);
 }
 
-setup.info = {
-  version: '0.3',
-  description: 'Highlight portals that have mods installed',
-  category: 'Highlighter',
-};
-
-if (window.plugin) {
+if (window.iitcLoaded) {
   setup();
 } else {
-  window.bootPlugins = window.bootPlugins || [];
+  if (typeof window.bootPlugins !== 'object') window.bootPlugins = [];
   window.bootPlugins.push(setup);
 }
